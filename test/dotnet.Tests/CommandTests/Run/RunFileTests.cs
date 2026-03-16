@@ -150,11 +150,12 @@ public sealed class RunFileTests(ITestOutputHelper log) : SdkTest(log)
     /// <c>dotnet run file.cs</c> succeeds without a project file.
     /// </summary>
     [Theory]
-    [InlineData(null, false)] // will be replaced with an absolute path
-    [InlineData("Program.cs", false)]
-    [InlineData("./Program.cs", false)]
-    [InlineData("Program.CS", true)]
-    public void FilePath(string? path, bool differentCasing)
+    [InlineData(null, false, "Hello from Program")] // will be replaced with an absolute path
+    [InlineData("Program.cs", false, "Hello from Program")]
+    [InlineData("./Program.cs", false, "Hello from Program")]
+    [InlineData("Program.CS", true, "Hello from Program")] // extension casing differs; stem "Program" is preserved
+    [InlineData("program.cs", true, "Hello from program")] // full name lowercase; assembly name reflects arg casing
+    public void FilePath(string? path, bool differentCasing, string expectedOutput)
     {
         var testInstance = TestAssetsManager.CreateTestDirectory();
 
@@ -171,7 +172,7 @@ public sealed class RunFileTests(ITestOutputHelper log) : SdkTest(log)
         if (!differentCasing || HasCaseInsensitiveFileSystem)
         {
             result.Should().Pass()
-                .And.HaveStdOut("Hello from Program");
+                .And.HaveStdOut(expectedOutput);
         }
         else
         {
@@ -282,34 +283,6 @@ public sealed class RunFileTests(ITestOutputHelper log) : SdkTest(log)
                 Hello from Program
                 Release config
                 """);
-    }
-
-    /// <summary>
-    /// Casing of the argument is used for the output binary name.
-    /// </summary>
-    [Fact]
-    public void FilePath_DifferentCasing()
-    {
-        var testInstance = TestAssetsManager.CreateTestDirectory();
-        File.WriteAllText(Path.Join(testInstance.Path, "Program.cs"), s_program);
-
-        var result = new DotnetCommand(Log, "run", "program.cs")
-            .WithWorkingDirectory(testInstance.Path)
-            .Execute();
-
-        if (HasCaseInsensitiveFileSystem)
-        {
-            result.Should().Pass()
-                .And.HaveStdOut("Hello from program");
-        }
-        else
-        {
-            result.Should().Fail()
-                .And.HaveStdErrContaining(string.Format(
-                    CliCommandStrings.RunCommandExceptionNoProjects,
-                    testInstance.Path,
-                    "--project"));
-        }
     }
 
     /// <summary>
