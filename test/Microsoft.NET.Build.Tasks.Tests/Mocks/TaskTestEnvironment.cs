@@ -11,16 +11,17 @@ namespace Microsoft.NET.Build.Tasks.UnitTests;
 ///
 /// Creates two temp directories:
 ///   - ProjectDirectory: where project files live (the "correct" base for relative paths)
-///   - SpawnDirectory: a different CWD simulating a remote MSBuild node
+///   - SpawnDirectory: a sibling directory representing a remote MSBuild node's CWD
 ///
-/// On construction the process CWD is changed to SpawnDirectory so that any
-/// task using <c>Environment.CurrentDirectory</c> to resolve relative paths will
-/// resolve against the wrong directory, exposing the bug.
+/// The test does NOT mutate the process CWD. Mutating <c>Environment.CurrentDirectory</c>
+/// is a process-wide side effect that causes non-deterministic failures when tests run
+/// in parallel. The assertion intent is preserved because project files are always created
+/// inside the unique temp ProjectDirectory, so any relative-path lookup against the real
+/// CWD (the test output directory) will correctly return false.
 /// </summary>
 internal sealed class TaskTestEnvironment : IDisposable
 {
     private readonly string _root;
-    private readonly string _savedCwd;
 
     /// <summary>Where project files are created.</summary>
     public string ProjectDirectory { get; }
@@ -44,10 +45,6 @@ internal sealed class TaskTestEnvironment : IDisposable
         Directory.CreateDirectory(SpawnDirectory);
 
         TaskEnvironment = TaskEnvironmentHelper.CreateForTest(ProjectDirectory);
-
-        // Switch CWD to the spawn directory so relative paths don't accidentally work.
-        _savedCwd = Directory.GetCurrentDirectory();
-        Directory.SetCurrentDirectory(SpawnDirectory);
     }
 
     /// <summary>
@@ -95,8 +92,6 @@ internal sealed class TaskTestEnvironment : IDisposable
 
     public void Dispose()
     {
-        Directory.SetCurrentDirectory(_savedCwd);
-
         try
         {
             Directory.Delete(_root, recursive: true);
